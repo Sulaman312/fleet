@@ -3858,15 +3858,12 @@ func (ds *Datastore) SetOrUpdateIDPHostDeviceMapping(ctx context.Context, hostID
 	)
 
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		// First, delete any existing IDP mappings for this host from both mdm_idp and idp sources
-		if _, err := tx.ExecContext(ctx, delStmt, hostID, fleet.DeviceMappingIDP); err != nil {
-			return ctxerr.Wrap(ctx, err, "delete existing IDP device mappings")
-		}
+		// First, delete any existing IDP mappings for this host
 		if _, err := tx.ExecContext(ctx, delStmt, hostID, fleet.DeviceMappingMDMIdpAccounts); err != nil {
 			return ctxerr.Wrap(ctx, err, "delete existing MDM IDP device mappings")
 		}
 
-		if _, err := tx.ExecContext(ctx, insStmt, email, hostID, fleet.DeviceMappingIDP); err != nil {
+		if _, err := tx.ExecContext(ctx, insStmt, email, hostID, fleet.DeviceMappingMDMIdpAccounts); err != nil {
 			return ctxerr.Wrap(ctx, err, "insert IDP device mapping")
 		}
 
@@ -3880,16 +3877,8 @@ func (ds *Datastore) DeleteHostIDP(ctx context.Context, id uint) error {
 
 	// delete rows from host_emails
 	err := ds.withRetryTxx(ctx, func(tx sqlx.ExtContext) error {
-		var idpDelRes, mdmIdpDelRes sql.Result
-		// delete where source == "idp"
-		idpDelRes, err := tx.ExecContext(ctx, delStmt, id, fleet.DeviceMappingIDP)
-		if err != nil {
-			return ctxerr.Wrap(ctx, err, "delete existing IdP device mappings")
-		}
-		idpRowsAffected, err := idpDelRes.RowsAffected()
-		if err != nil {
-			return ctxerr.Wrap(ctx, err, "delete existing IdP device mappings - get IdP rows affected")
-		}
+		var mdmIdpDelRes sql.Result
+		var err error
 
 		// delete where source == "mdm_idp_accounts"
 		mdmIdpDelRes, err = tx.ExecContext(ctx, delStmt, id, fleet.DeviceMappingMDMIdpAccounts)
@@ -3901,7 +3890,7 @@ func (ds *Datastore) DeleteHostIDP(ctx context.Context, id uint) error {
 			return ctxerr.Wrap(ctx, err, "delete existing IdP device mappings - get mdm IdP rows affected")
 		}
 
-		if idpRowsAffected+mdmIdpRowsAffected == 0 {
+		if mdmIdpRowsAffected == 0 {
 			return fleet.NewInvalidArgumentError("delete host IdP mapping", "no existing IdP mappings for this host")
 		}
 

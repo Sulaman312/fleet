@@ -6811,7 +6811,7 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	mappings, err := ds.ListHostDeviceMapping(ctx, h1.ID)
 	require.NoError(t, err)
 	assertHostDeviceMapping(t, mappings, []*fleet.HostDeviceMapping{
-		{Email: "user1@idp.com", Source: fleet.DeviceMappingIDP},
+		{Email: "user1@idp.com", Source: fleet.DeviceMappingMDMIdpAccounts},
 	})
 
 	// Test 2: Replace IDP mapping with new user (should replace, not add)
@@ -6822,7 +6822,7 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	mappings, err = ds.ListHostDeviceMapping(ctx, h1.ID)
 	require.NoError(t, err)
 	assertHostDeviceMapping(t, mappings, []*fleet.HostDeviceMapping{
-		{Email: "user2@idp.com", Source: fleet.DeviceMappingIDP},
+		{Email: "user2@idp.com", Source: fleet.DeviceMappingMDMIdpAccounts},
 	})
 
 	// Test 3: Test idempotent behavior - setting same mapping again should not change anything
@@ -6833,7 +6833,7 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	mappings, err = ds.ListHostDeviceMapping(ctx, h1.ID)
 	require.NoError(t, err)
 	assertHostDeviceMapping(t, mappings, []*fleet.HostDeviceMapping{
-		{Email: "user2@idp.com", Source: fleet.DeviceMappingIDP},
+		{Email: "user2@idp.com", Source: fleet.DeviceMappingMDMIdpAccounts},
 	})
 
 	// Test 4: Add IDP mapping for different host
@@ -6844,25 +6844,25 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	mappings, err = ds.ListHostDeviceMapping(ctx, h2.ID)
 	require.NoError(t, err)
 	assertHostDeviceMapping(t, mappings, []*fleet.HostDeviceMapping{
-		{Email: "user3@idp.com", Source: fleet.DeviceMappingIDP},
+		{Email: "user3@idp.com", Source: fleet.DeviceMappingMDMIdpAccounts},
 	})
 
 	// Verify h1 still has its current mapping unchanged
 	mappings, err = ds.ListHostDeviceMapping(ctx, h1.ID)
 	require.NoError(t, err)
 	assertHostDeviceMapping(t, mappings, []*fleet.HostDeviceMapping{
-		{Email: "user2@idp.com", Source: fleet.DeviceMappingIDP},
+		{Email: "user2@idp.com", Source: fleet.DeviceMappingMDMIdpAccounts},
 	})
 
 	// Test 5: Test coexistence with custom mappings
 	customMappings, err := ds.SetOrUpdateCustomHostDeviceMapping(ctx, h1.ID, "custom@example.com", fleet.DeviceMappingCustomOverride)
 	require.NoError(t, err)
 
-	// Should have both IDP and custom mappings (only one IDP mapping)
+	// Should have both mdm_idp_accounts and custom mappings (only one IDP mapping)
 	require.Len(t, customMappings, 2)
 	assertHostDeviceMapping(t, customMappings, []*fleet.HostDeviceMapping{
 		{Email: "custom@example.com", Source: fleet.DeviceMappingCustomReplacement}, // displayed as "custom"
-		{Email: "user2@idp.com", Source: fleet.DeviceMappingIDP},
+		{Email: "user2@idp.com", Source: fleet.DeviceMappingMDMIdpAccounts},
 	})
 
 	// Test 6: Test replacement with various email formats
@@ -6880,9 +6880,9 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 		// Verify only the current email exists (replacement behavior)
 		mappings, err = ds.ListHostDeviceMapping(ctx, h2.ID)
 		require.NoError(t, err)
-		require.Len(t, mappings, 1, "Should have exactly one IDP mapping after email %d", i)
+		require.Len(t, mappings, 1, "Should have exactly one mdm_idp_accounts mapping after email %d", i)
 		assert.Equal(t, email, mappings[0].Email, "Should have the latest email")
-		assert.Equal(t, fleet.DeviceMappingIDP, mappings[0].Source, "Should be IDP source")
+		assert.Equal(t, fleet.DeviceMappingMDMIdpAccounts, mappings[0].Source, "Should be mdm_idp_accounts source")
 	}
 
 	// Test 7: Test empty email (edge case)
@@ -6894,7 +6894,7 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	require.NoError(t, err)
 	found := false
 	for _, mapping := range mappings {
-		if mapping.Email == "" && mapping.Source == fleet.DeviceMappingIDP {
+		if mapping.Email == "" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
 			found = true
 			break
 		}
@@ -6920,7 +6920,7 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	}
 	require.True(t, foundMdmIdp, "Should find MDM IDP mapping")
 
-	// Now set a new IDP mapping - this should replace the mdm_idp_accounts entry
+	// Now set a new mdm_idp_accounts mapping - this should replace the mdm_idp_accounts entry
 	err = ds.SetOrUpdateIDPHostDeviceMapping(ctx, h1.ID, "new.user@example.com")
 	require.NoError(t, err)
 
@@ -6931,69 +6931,39 @@ func testIDPHostDeviceMapping(t *testing.T, ds *Datastore) {
 	foundOldMdmIdp := false
 	foundEmptyEmail := false
 	for _, mapping := range mappings {
-		if mapping.Email == "new.user@example.com" && mapping.Source == fleet.DeviceMappingIDP {
+		if mapping.Email == "new.user@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
 			foundNewIdp = true
 		}
 		if mapping.Email == "mdm.user@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
 			foundOldMdmIdp = true
 		}
-		if mapping.Email == "" && mapping.Source == fleet.DeviceMappingIDP {
+		if mapping.Email == "" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
 			foundEmptyEmail = true
 		}
 	}
-	require.True(t, foundNewIdp, "Should find new IDP mapping")
-	require.False(t, foundOldMdmIdp, "Should NOT find old MDM IDP mapping (replacement behavior)")
+	require.True(t, foundNewIdp, "Should find new mdm_idp_accounts mapping")
+	require.False(t, foundOldMdmIdp, "Should NOT find old MDM mdm_idp_accounts mapping (replacement behavior)")
 	require.False(t, foundEmptyEmail, "Should NOT find empty email mapping (replaced)")
 
 	// delete the host's IDP device mapping (email), custom mapping should remain
 	err = ds.DeleteHostIDP(ctx, h1.ID)
 	require.NoError(t, err)
 
-	// verify that IdP mapping is gone, custom mapping remains
+	// verify that mdm_idp_accounts mapping is gone, custom mapping remains
 	mappings, err = ds.ListHostDeviceMapping(ctx, h1.ID)
 	require.NoError(t, err)
 	foundIdP := false
 	foundCustom := false
 	for _, mapping := range mappings {
-		if mapping.Email == "new.user@example.com" && mapping.Source == fleet.DeviceMappingIDP {
+		if mapping.Email == "new.user@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
 			foundIdP = true
 		}
 		if mapping.Email == "custom@example.com" && mapping.Source == fleet.DeviceMappingCustomReplacement {
 			foundCustom = true
 		}
 	}
-	require.False(t, foundIdP, "IdP mapping should be deleted")
+	require.False(t, foundIdP, "mdm_idp_accounts mapping should be deleted")
 	require.True(t, foundCustom, "Custom mapping should remain")
-
-	// verify delete also removes mdm-sourced idp mappings
-	// Manually add mdm_idp_accounts entry to simulate MDM enrollment
-	_, err = ds.writer(ctx).ExecContext(ctx,
-		`INSERT INTO host_emails (email, host_id, source) VALUES (?, ?, ?)`,
-		"mdm.user2@example.com", h1.ID, fleet.DeviceMappingMDMIdpAccounts)
-	require.NoError(t, err)
-
-	// Verify the mdm_idp_accounts entry exists
-	mappings, err = ds.ListHostDeviceMapping(ctx, h1.ID)
-	require.NoError(t, err)
-	require.Len(t, mappings, 2)
-	foundMdmIdp = false
-	for _, mapping := range mappings {
-		if mapping.Email == "mdm.user2@example.com" && mapping.Source == fleet.DeviceMappingMDMIdpAccounts {
-			foundMdmIdp = true
-			break
-		}
-	}
-	require.True(t, foundMdmIdp, "Should find MDM IDP mapping")
-
-	// delete the remaining IDP device mapping (email), custom mapping should remain
-	err = ds.DeleteHostIDP(ctx, h1.ID)
-	require.NoError(t, err)
-
-	mappings, err = ds.ListHostDeviceMapping(ctx, h1.ID)
-	require.NoError(t, err)
-
-	require.Len(t, mappings, 1)
-	require.Equal(t, mappings[0].Source, fleet.DeviceMappingCustomReplacement)
 }
 
 func testHostMDMAndMunki(t *testing.T, ds *Datastore) {

@@ -1109,9 +1109,12 @@ func ExpandPlatform(platform string) []string {
 const (
 	DeviceMappingGoogleChromeProfiles = "google_chrome_profiles"
 	DeviceMappingMDMIdpAccounts       = "mdm_idp_accounts"
-	DeviceMappingIDP                  = "idp"              // set by user via PUT /hosts/{id}/device_mapping with source=idp
-	DeviceMappingCustomInstaller      = "custom_installer" // set by fleetd via device-authenticated API
-	DeviceMappingCustomOverride       = "custom_override"  // set by user via user-authenticated API
+	// Looking for "idp"?
+	// https://github.com/fleetdm/fleet/issues/37168
+	// This is not a valid database value, it is just an api vanity value, it actually maps to DeviceMappingMDMIdpAccounts
+	// See SetHostDeviceMapping in server/service/hosts.go
+	DeviceMappingCustomInstaller = "custom_installer" // set by fleetd via device-authenticated API
+	DeviceMappingCustomOverride  = "custom_override"  // set by user via user-authenticated API
 
 	DeviceMappingCustomPrefix      = "custom_" // if host_emails.source starts with this, replace with DeviceMappingCustomReplacement
 	DeviceMappingCustomReplacement = "custom"  // replaces a source that starts with CustomPrefix - in the UI, we want to display those as only "custom"
@@ -1600,12 +1603,12 @@ func GetEndUsers(ctx context.Context, ds Datastore, hostID uint) ([]HostEndUser,
 		endUser := HostEndUser{}
 		for _, email := range deviceMapping {
 			switch {
-			case (email.Source == DeviceMappingMDMIdpAccounts || email.Source == DeviceMappingIDP) && len(endUsers) == 0:
+			case (email.Source == DeviceMappingMDMIdpAccounts) && len(endUsers) == 0:
 				// If SCIM data is missing, we still populate IdpUserName if present.
 				// For DeviceMappingIDP source, this is the user-provided IDP username.
 				// Note: Username and email is the same thing here until we split them with https://github.com/fleetdm/fleet/issues/27952
 				endUser.IdpUserName = email.Email
-			case email.Source != DeviceMappingMDMIdpAccounts && email.Source != DeviceMappingIDP:
+			case email.Source != DeviceMappingMDMIdpAccounts:
 				// Only add to OtherEmails if it's not an IDP source
 				endUser.OtherEmails = append(endUser.OtherEmails, *email)
 			}

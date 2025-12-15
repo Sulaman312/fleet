@@ -1,0 +1,1 @@
+* Convert "idp" to "mdm_idp_accounts" when manually setting a hosts' human-device mapping. Corrected incorrectly created entries with source = "idp"

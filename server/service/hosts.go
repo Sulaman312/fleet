@@ -1653,6 +1653,8 @@ func (svc *Service) ListHostDeviceMapping(ctx context.Context, id uint) ([]*flee
 // Put Custom Host Device Mapping
 ////////////////////////////////////////////////////////////////////////////////
 
+const DeviceMappingIDP = "idp"
+
 type putHostDeviceMappingRequest struct {
 	ID     uint   `url:"id"`
 	Email  string `json:"email"`
@@ -1712,7 +1714,10 @@ func (svc *Service) SetHostDeviceMapping(ctx context.Context, hostID uint, email
 	switch source {
 	case fleet.DeviceMappingCustomOverride, fleet.DeviceMappingCustomInstaller:
 		return svc.ds.SetOrUpdateCustomHostDeviceMapping(ctx, hostID, email, source)
-	case fleet.DeviceMappingIDP:
+	case DeviceMappingIDP, fleet.DeviceMappingMDMIdpAccounts:
+		// "idp" potentially set by user via PUT /hosts/{id}/device_mapping with source=idp
+		// translates to fleet.DeviceMappingMDMIdpAccounts for database
+
 		// This is a premium-only feature
 		lic, err := svc.License(ctx)
 		if err != nil {
@@ -1770,7 +1775,7 @@ func (svc *Service) SetHostDeviceMapping(ctx context.Context, hostID uint, email
 		// Return the updated device mappings including the IDP mapping
 		return svc.ds.ListHostDeviceMapping(ctx, hostID)
 	default:
-		return nil, fleet.NewInvalidArgumentError("source", fmt.Sprintf("must be 'custom' or '%s'", fleet.DeviceMappingIDP))
+		return nil, fleet.NewInvalidArgumentError("source", fmt.Sprintf("must be 'custom' or '%s' or '%s'", DeviceMappingIDP, fleet.DeviceMappingMDMIdpAccounts))
 	}
 }
 
